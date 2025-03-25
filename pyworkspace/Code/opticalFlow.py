@@ -126,8 +126,8 @@ def computeOpticalFlows(
                                             poly_n = 5,          # Size of the pixel neighborhood used for polynomial expansion; higher values allow more complex motion
                                             poly_sigma = 1.2,    # Standard deviation of the Gaussian used for polynomial expansion; higher values make the flow smoother
                                             flags = 0)           # Flags to modify the algorithm behavior (usually 0 for default behavior)
-        egoMotionU = np.dot(G, linearCameraSpeeds[j])
-        egoMotionV = np.dot(H, angularCameraSpeeds[j])
+        # egoMotionU = np.dot(G, linearCameraSpeeds[j])
+        # egoMotionV = np.dot(H, angularCameraSpeeds[j])
         egoFlow = np.stack([egoMotionU, egoMotionV], axis=-1)
         compensatedFlow = flow - egoFlow
         naturalFlowFrames.append(visualizeFlow(coloredFrames[j], flow))
