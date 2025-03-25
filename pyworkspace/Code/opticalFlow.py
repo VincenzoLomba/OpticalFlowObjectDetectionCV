@@ -37,10 +37,9 @@ def saveFramesToVideo(frames, outputVideoPath, fps, width, height):
     for frame in frames: videoWriter.write(frame)
     videoWriter.release()
 
-def computeFrameEgoMotionMatrices(grayFrame, focalLength):
+def computeEgoMotionMatrices(width, height, focalLength):
 
     # Generating the xi and eta coordinates matrices
-    height, width = grayFrame.shape[:2]
     xi = np.arange(-int(width/2), int(width/2) + 1) # pixels (int) (x)
     eta = np.arange(-int(height/2), int(height/2) + 1) # pixels (int) (y)
     xi = np.delete(xi, int(width/2))
@@ -81,12 +80,13 @@ def visualizeFlow(frame, flow, decimation = 15, scale = 10, color = [255, 100, 3
 
 def computeOpticalFlows(
         coloredFrames: List[np.ndarray],
-        framesWidth: int,
-        framesHeight: int,
         focalLength: float,
         videoDepths: List[np.ndarray],
         linearCameraSpeeds: List[List[float]],
         angularCameraSpeeds: List[List[float]]):
+    
+    framesWidth = coloredFrames[0].shape[1]
+    framesHeight = coloredFrames[0].shape[0]
 
     # Unpacking video depths data and checking for consistency
     videoDepthsFramesQuantity = len(videoDepths)
@@ -111,23 +111,23 @@ def computeOpticalFlows(
     compensatedFlowFrames = []
     if coloredFrames is None: sys.exit()
     grayFrames = [cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) for frame in coloredFrames]
+    G,H = computeEgoMotionMatrices(framesWidth, framesHeight, focalLength)
 
     for j in range(1, len(grayFrames)):
         prevFrame = grayFrames[j - 1]
-        frame = grayFrames[j]
-        flow = cv2.calcOpticalFlowFarneback(prev = prevFrame, # Previous frame (grayscale image)
-                                            next = frame,     # Current frame (grayscale image)
-                                            flow = None,      # Output flow image; set to None to allow OpenCV to create it
-                                            pyr_scale = 0.5,  # Image pyramid scale; a value between 0 and 1, controlling the resolution of each pyramid level
-                                            levels = 3,       # Number of pyramid levels; higher values detect motion at larger scales
-                                            winsize = 15,     # Window size for local averaging (in pixels)
-                                            iterations = 3,   # Number of iterations for refining the flow estimation at each pyramid level
-                                            poly_n = 5,       # Size of the pixel neighborhood used for polynomial expansion; higher values allow more complex motion
-                                            poly_sigma = 1.2, # Standard deviation of the Gaussian used for polynomial expansion; higher values make the flow smoother
-                                            flags = 0)        # Flags to modify the algorithm behavior (usually 0 for default behavior)
-        G,H = computeFrameEgoMotionMatrices(frame, focalLength)
-        egoMotionU = np.dot(G, linearCameraSpeeds)
-        egoMotionV = np.dot(H, angularCameraSpeeds)
+        currentFrame = grayFrames[j]
+        flow = cv2.calcOpticalFlowFarneback(prev = prevFrame,    # Previous frame (grayscale image)
+                                            next = currentFrame, # Current frame (grayscale image)
+                                            flow = None,         # Output flow image; set to None to allow OpenCV to create it
+                                            pyr_scale = 0.5,     # Image pyramid scale; a value between 0 and 1, controlling the resolution of each pyramid level
+                                            levels = 3,          # Number of pyramid levels; higher values detect motion at larger scales
+                                            winsize = 15,        # Window size for local averaging (in pixels)
+                                            iterations = 3,      # Number of iterations for refining the flow estimation at each pyramid level
+                                            poly_n = 5,          # Size of the pixel neighborhood used for polynomial expansion; higher values allow more complex motion
+                                            poly_sigma = 1.2,    # Standard deviation of the Gaussian used for polynomial expansion; higher values make the flow smoother
+                                            flags = 0)           # Flags to modify the algorithm behavior (usually 0 for default behavior)
+        egoMotionU = np.dot(G, linearCameraSpeeds[j])
+        egoMotionV = np.dot(H, angularCameraSpeeds[j])
         egoFlow = np.stack([egoMotionU, egoMotionV], axis=-1)
         compensatedFlow = flow - egoFlow
         naturalFlowFrames.append(visualizeFlow(coloredFrames[j], flow))

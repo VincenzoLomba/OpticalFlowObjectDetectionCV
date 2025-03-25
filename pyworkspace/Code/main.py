@@ -20,7 +20,7 @@ if __name__ == "__main__":
     log.setActive("OPTFLW")
     log.log("Computing the optical flows...")    
     naturalFlowFrames, egoFlowFrames, compensatedFlowFrames = computeOpticalFlows(
-        frames, width, height, focalLength, videoDepths, linearCameraSpeeds, angularCameraSpeeds
+        frames, focalLength, videoDepths, linearCameraSpeeds, angularCameraSpeeds
     )
 
     # Saving optical flows to video
