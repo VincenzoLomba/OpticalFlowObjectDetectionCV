@@ -1,20 +1,28 @@
 
 import cv2, os
 import logger as log
+import numpy as np
 from opticalFlow import loadVideoFrames, computeOpticalFlows, saveFramesToVideo
 
 if __name__ == "__main__":
     
-    # Setting up data
-    inputVideoPath = ""
-    outputFolderPath = ""
-    focalLength = 522.196 # pixels (float)
+    # Project Folders
+    dataFolderPath = "C:\\Users\\vince\\OneDrive\\Documenti\\Università\\Magistrale\\Second Year\\Topic Highlights\\Final Project\\pyworkspace\\Code\\Data"
+    inputVideoPath = dataFolderPath + os.sep + "input.avi"
+    outputFolderPath = dataFolderPath + os.sep + "output"
+    if not os.path.exists(outputFolderPath): os.makedirs(outputFolderPath)
 
     # Loading video frames
     log.setActive("LOADER")
     log.log("Loading video frames...")
     frames, fps, width, height = loadVideoFrames(inputVideoPath)
     if not frames: exit()
+
+    # Setting up data
+    focalLength = 522.196 # pixels (float)
+    videoDepths = np.zeros((len(frames), height, width)) # meters (float)
+    linearCameraSpeeds = np.zeros((len(frames), 3))      # meters/sec (float)
+    angularCameraSpeeds = np.zeros((len(frames), 3))     # radians/sec (float)
 
     # Computing optical flows
     log.setActive("OPTFLW")

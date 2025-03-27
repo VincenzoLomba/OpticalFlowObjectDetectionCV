@@ -18,4 +18,5 @@ def log(word):
 
 def error(word):
     log(word)
+    newLine()
     raise Exception(word)

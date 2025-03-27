@@ -24,7 +24,7 @@ def loadVideoFrames(videoPath):
             processingVideo = False
             break
     videoCapture.release()
-    return frames, fps, width, height
+    return [x for x in frames if x is not None], fps, width, height
 
 def saveFramesToVideo(frames, outputVideoPath, fps, width, height):
 
@@ -60,13 +60,14 @@ def computeEgoMotionMatrices(width, height, focalLength):
     H[..., 1, 2] = -xiGrid
     return G,H
 
-def visualizeFlow(frame, flow, decimation = 15, scale = 10, color = [255, 100, 30], thickness = 1):
+def visualizeFlow(frame, flow, decimation = 20, scale = 2, color = (255, 100, 30), thickness = 1, tipLength=0.3):
 
     # Notice: Decimation controls the resolution of the optical flow visualization, allowing for
     #         a control in the number of drawn vectors to improve the readability of the image.
     # Notice: Scale controls the length of the optical flow vectors, allowing for a control in the
     #         magnitude of the drawn vectors to improve the readability of the image.
     frameOut = np.copy(frame)
+    y = np.arange(0, frameOut.shape[0], decimation)
     y = list(range(int(frameOut.shape[0])))[0::decimation]
     x = list(range(int(frameOut.shape[1])))[0::decimation]
     xv, yv = np.meshgrid(x, y)
@@ -75,7 +76,10 @@ def visualizeFlow(frame, flow, decimation = 15, scale = 10, color = [255, 100, 3
     startPoints = np.array([xv.flatten(), yv.flatten()]).T.astype(int).tolist()
     endPoints = np.array([xv.flatten() - u.flatten(), yv.flatten() - v.flatten()]).T.astype(int).tolist()
     for i in range(len(startPoints)):
-        cv2.arrowedLine(frameOut, tuple(startPoints[i]), tuple(endPoints[i]), color, thickness)
+        cv2.arrowedLine(
+            frameOut, tuple(startPoints[i]), tuple(endPoints[i]),
+            color, thickness, line_type=cv2.LINE_AA, tipLength = tipLength
+        )
     return frameOut
 
 def computeOpticalFlows(
@@ -90,8 +94,8 @@ def computeOpticalFlows(
 
     # Unpacking video depths data and checking for consistency
     videoDepthsFramesQuantity = len(videoDepths)
-    videoDepthsWidth = len(videoDepths[0])
-    videoDepthsHeight = len(videoDepths[0][0])
+    videoDepthsWidth = len(videoDepths[0][0])
+    videoDepthsHeight = len(videoDepths[0])
     if videoDepthsFramesQuantity != len(coloredFrames) or videoDepthsWidth != framesWidth or videoDepthsHeight != framesHeight:
         log.error("Error: the provided video depths data is inconsistent with the video frames!")
     
@@ -112,6 +116,7 @@ def computeOpticalFlows(
     if coloredFrames is None: sys.exit()
     grayFrames = [cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) for frame in coloredFrames]
     G,H = computeEgoMotionMatrices(framesWidth, framesHeight, focalLength)
+    progressLabel = -1
 
     for j in range(1, len(grayFrames)):
         prevFrame = grayFrames[j - 1]
@@ -128,12 +133,17 @@ def computeOpticalFlows(
                                             flags = 0)           # Flags to modify the algorithm behavior (usually 0 for default behavior)
         cameraLinVel = np.reshape(np.array(linearCameraSpeeds[j]), (3, 1))
         cameraAngVel = np.reshape(np.array(angularCameraSpeeds[j]), (3, 1))
-        cameraDepthMatrix = np.reshape(np.array(videoDepths[j]), (framesHeight, framesWidth))
+        cameraDepthMatrix = np.maximum(np.array(videoDepths[j]).reshape(framesHeight, framesWidth), 1e-6)
         # Implementing the ego motion compensation: egoVel = (1/depth)*G@v+H@w for each pixel in the whole frame
         egoFlow = (1/cameraDepthMatrix)[..., None]*(G@cameraLinVel).squeeze(-1) + (H@cameraAngVel).squeeze(-1)
         compensatedFlow = flow - egoFlow
         naturalFlowFrames.append(visualizeFlow(coloredFrames[j], flow))
         egoFlowFrames.append(visualizeFlow(coloredFrames[j], egoFlow))
         compensatedFlowFrames.append(visualizeFlow(coloredFrames[j], compensatedFlow))
+
+        progress = (int)(j/len(grayFrames)*100)
+        if progress % 10 == 0 and progress != progressLabel:
+            progressLabel = progress
+            log.log("Progress: " + str(progress) + "%")
 
     return naturalFlowFrames, egoFlowFrames, compensatedFlowFrames
