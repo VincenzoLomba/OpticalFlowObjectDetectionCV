@@ -3,6 +3,22 @@ import cv2, os
 import logger as log
 import numpy as np
 from opticalFlow import loadVideoFrames, computeOpticalFlows, saveFramesToVideo
+import matplotlib.pyplot as plt
+
+def plot(vector, title):
+    plt.figure(figsize=(10, 5))
+    plt.plot(vector, marker='o', linestyle='-', color='b')
+    plt.title(title)
+    plt.xlabel(title)
+    plt.ylabel('time')
+    plt.grid(True)
+    plt.show()
+
+def resample(array, numberOfSamples):
+    l = array.shape[0]
+    if l == numberOfSamples: return array
+    indices = np.linspace(0, l-1, num=numberOfSamples, dtype=int)
+    return array[indices]
 
 if __name__ == "__main__":
     
@@ -16,13 +32,23 @@ if __name__ == "__main__":
     log.setActive("LOADER")
     log.log("Loading video frames...")
     frames, fps, width, height = loadVideoFrames(inputVideoPath)
+    framesQuantity = len(frames)
     if not frames: exit()
 
     # Setting up data
+    log.log("Loading simulation frames...")
     focalLength = 522.196 # pixels (float)
-    videoDepths = np.zeros((len(frames), height, width)) # meters (float)
-    linearCameraSpeeds = np.zeros((len(frames), 3))      # meters/sec (float)
-    angularCameraSpeeds = np.zeros((len(frames), 3))     # radians/sec (float)
+    videoDepths = resample(np.load(dataFolderPath + os.sep + "depth_tensor.npy"), framesQuantity) # meters (float)
+    speedData = resample(np.load(dataFolderPath + os.sep + "camera_velocities.npy"), framesQuantity) # meters/sec (float)
+    linearCameraSpeeds = speedData[:, 0:3] # meters/sec (float)
+    angularCameraSpeeds = speedData[:, 3:6] # radians/sec (float)
+
+    plot(linearCameraSpeeds[:, 0], "Linear Camera Speed X")
+    plot(linearCameraSpeeds[:, 1], "Linear Camera Speed Y")
+    plot(linearCameraSpeeds[:, 2], "Linear Camera Speed Z")
+    plot(angularCameraSpeeds[:, 0], "Angular Camera Speed X")
+    plot(angularCameraSpeeds[:, 1], "Angular Camera Speed Y")
+    plot(angularCameraSpeeds[:, 2], "Angular Camera Speed Z")
 
     # Computing optical flows
     log.setActive("OPTFLW")
