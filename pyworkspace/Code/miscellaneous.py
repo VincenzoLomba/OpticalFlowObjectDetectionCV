@@ -1,5 +1,6 @@
 
 from datetime import datetime
+import numpy as np
 dateFormat = "%H:%M:%S" # "%Y-%m-%d_%H-%M-%S"
 
 def getTimeDifferenceAsString(endingTime, startingTime):
@@ -9,3 +10,9 @@ def getTimeDifferenceAsString(endingTime, startingTime):
     return str(hours) + " hours, " + str(minutes) + " minutes, " + str(seconds) + " seconds"
 
 def getTime(): return datetime.now().strftime(dateFormat)
+
+def computeDiscreteDerivative(values, sampleTime):
+    derivative = np.zeros(values.shape)
+    for i in range(1, len(values)):
+        derivative[i] = (values[i] - values[i-1]) / sampleTime
+    return derivative
