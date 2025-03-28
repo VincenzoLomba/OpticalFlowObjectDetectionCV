@@ -3,6 +3,35 @@ import numpy as np
 import logger as log
 from typing import List
 import cv2
+import os
+from pathlib import Path
+from PIL import Image
+
+def loadImagesAsFrames(imagesFolderPath: Path, imagesExtension = ".jpg"):
+    frames = []
+    if not os.path.exists(imagesFolderPath): log.error(f"Error: the folder \"{imagesFolderPath}\" does not exist.")
+    jpgFiles = [f for f in os.listdir(imagesFolderPath) if f.lower().endswith(imagesExtension)]
+    jpgFiles.sort(key = lambda x: int(''.join(filter(str.isdigit, x))))
+    if not jpgFiles: log.error(f"Error: no {imagesExtension} images found in the folder \"{imagesFolderPath}\".")
+    width = 0
+    height = 0
+    for fileName in jpgFiles:
+        filePath = imagesFolderPath / fileName
+        if not os.path.exists(filePath): log.error(f"Error: the file \"{filePath}\" does not exist.")
+        pilImg = Image.open(filePath)
+        if pilImg is None: log.error(f"Error: unable to load the image \"{filePath}\".")
+        frame = cv2.cvtColor(np.array(pilImg), cv2.COLOR_RGB2BGR)
+        if frame is not None: frames.append(frame)
+        else: log.error(f"Attention: unable to load as frame the image {fileName}!")
+        if width == 0:
+            width = frame.shape[1]
+        elif width != frame.shape[1]:
+            log.error(f"Error: the width is not consistent among all frames!")
+        if height == 0:
+            height = frame.shape[0]
+        elif height != frame.shape[0]:
+            log.error(f"Error: the height is not consistent among all frames!")
+    return frames, width, height
 
 def loadVideoFrames(videoPath):
 
@@ -119,6 +148,7 @@ def computeOpticalFlows(
     progressLabel = -1
 
     for j in range(1, len(grayFrames)):
+        
         prevFrame = grayFrames[j - 1]
         currentFrame = grayFrames[j]
         flow = cv2.calcOpticalFlowFarneback(prev = prevFrame,    # Previous frame (grayscale image)
@@ -131,12 +161,15 @@ def computeOpticalFlows(
                                             poly_n = 5,          # Size of the pixel neighborhood used for polynomial expansion; higher values allow more complex motion
                                             poly_sigma = 1.2,    # Standard deviation of the Gaussian used for polynomial expansion; higher values make the flow smoother
                                             flags = 0)           # Flags to modify the algorithm behavior (usually 0 for default behavior)
+        
         cameraLinVel = np.reshape(np.array(linearCameraSpeeds[j]), (3, 1))
         cameraAngVel = np.reshape(np.array(angularCameraSpeeds[j]), (3, 1))
         cameraDepthMatrix = np.maximum(np.array(videoDepths[j]).reshape(framesHeight, framesWidth), 1e-6)
+        
         # Implementing the ego motion compensation: egoVel = (1/depth)*G@v+H@w for each pixel in the whole frame
         egoFlow = (1/cameraDepthMatrix)[..., None]*(G@cameraLinVel).squeeze(-1) + (H@cameraAngVel).squeeze(-1)
         compensatedFlow = flow - egoFlow
+        
         naturalFlowFrames.append(visualizeFlow(coloredFrames[j], flow))
         egoFlowFrames.append(visualizeFlow(coloredFrames[j], egoFlow))
         compensatedFlowFrames.append(visualizeFlow(coloredFrames[j], compensatedFlow))
