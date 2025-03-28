@@ -3,6 +3,16 @@ import logger as log
 import os
 from opticalFlow import loadVideoFrames
 import numpy as np
+import cv2
+from pathlib import Path
+from PIL import Image
+
+p = Path(r"C:\Users\vince\OneDrive\Documenti\Università\Magistrale\Second Year\Topic Highlights\Final Project\Materials\EgoMotionSubtraction\EgoMotionOFCode\data\test_unreal1\image\1.jpg")
+long_path = Path(p).absolute().resolve()
+with Image.open(long_path) as pil_img:
+    c = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+# c = cv2.imread(str(long_path))
+print(c)
 
 # Loading video frames
 print(os.sep)
