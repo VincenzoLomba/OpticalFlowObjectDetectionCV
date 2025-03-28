@@ -149,6 +149,7 @@ def computeOpticalFlows(
 
     for j in range(1, len(grayFrames)):
         
+        # Computing the natural optical flow between previous and current frame
         prevFrame = grayFrames[j - 1]
         currentFrame = grayFrames[j]
         flow = cv2.calcOpticalFlowFarneback(prev = prevFrame,    # Previous frame (grayscale image)
@@ -162,6 +163,7 @@ def computeOpticalFlows(
                                             poly_sigma = 1.2,    # Standard deviation of the Gaussian used for polynomial expansion; higher values make the flow smoother
                                             flags = 0)           # Flags to modify the algorithm behavior (usually 0 for default behavior)
         
+        # Retrieving the camera velocities and depth matrix for the current frame
         cameraLinVel = np.reshape(np.array(linearCameraSpeeds[j]), (3, 1))
         cameraAngVel = np.reshape(np.array(angularCameraSpeeds[j]), (3, 1))
         cameraDepthMatrix = np.maximum(np.array(videoDepths[j]).reshape(framesHeight, framesWidth), 1e-6)
@@ -170,10 +172,12 @@ def computeOpticalFlows(
         egoFlow = (1/cameraDepthMatrix)[..., None]*(G@cameraLinVel).squeeze(-1) + (H@cameraAngVel).squeeze(-1)
         compensatedFlow = flow - egoFlow
         
+        # Visualizing the optical flows and adding the results to the correct lists
         naturalFlowFrames.append(visualizeFlow(coloredFrames[j], flow))
         egoFlowFrames.append(visualizeFlow(coloredFrames[j], egoFlow))
         compensatedFlowFrames.append(visualizeFlow(coloredFrames[j], compensatedFlow))
 
+        # Updating "progress bar"
         progress = (int)(j/len(grayFrames)*100)
         if progress % 10 == 0 and progress != progressLabel:
             progressLabel = progress
