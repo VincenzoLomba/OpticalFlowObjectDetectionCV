@@ -6,6 +6,8 @@ import cv2
 import os
 from pathlib import Path
 from PIL import Image
+import matplotlib.pyplot as plt
+from matplotlib import cm
 
 def loadImagesAsFrames(imagesFolderPath: Path, imagesExtension = ".jpg"):
     frames = []
@@ -55,7 +57,10 @@ def loadVideoFrames(videoPath):
     videoCapture.release()
     return [x for x in frames if x is not None], fps, width, height
 
-def saveFramesToVideo(frames, outputVideoPath, fps, width, height):
+def saveFramesToVideo(frames, outputVideoPath, fps):
+
+    width = frames[0].shape[1]
+    height = frames[0].shape[0]
 
     # Launching the video writer system
     fourcc = cv2.VideoWriter_fourcc(*'MJPG') # "fourcc" stands for "Four Character Code"
@@ -69,8 +74,8 @@ def saveFramesToVideo(frames, outputVideoPath, fps, width, height):
 def computeEgoMotionMatrices(width, height, focalLength):
 
     # Generating the xi and eta coordinates matrices
-    xi = np.arange(-int(width/2), int(width/2) + 1) # pixels (int) (x)
-    eta = np.arange(-int(height/2), int(height/2) + 1) # pixels (int) (y)
+    xi = np.arange(-int(width/2), int(width/2) + 1) # pixels (int) (x axis)
+    eta = np.arange(-int(height/2), int(height/2) + 1) # pixels (int) (y axis)
     xi = np.delete(xi, int(width/2))
     eta = np.delete(eta, int(height/2))
     # Generating the G and H matrices for the whole frame
@@ -111,6 +116,20 @@ def visualizeFlow(frame, flow, decimation = 20, scale = 2, color = (255, 100, 30
         )
     return frameOut
 
+def computeOpticalFlow(prevFrame, currentFrame):
+    # Computing the optical flow between previous and current frame
+    flow = cv2.calcOpticalFlowFarneback(prev = prevFrame,    # Previous frame (grayscale image)
+                                            next = currentFrame, # Current frame (grayscale image)
+                                            flow = None,         # Output flow image; set to None to allow OpenCV to create it
+                                            pyr_scale = 0.5,     # Image pyramid scale; a value between 0 and 1, controlling the resolution of each pyramid level
+                                            levels = 3,          # Number of pyramid levels; higher values detect motion at larger scales
+                                            winsize = 15,        # Window size for local averaging (in pixels)
+                                            iterations = 3,      # Number of iterations for refining the flow estimation at each pyramid level
+                                            poly_n = 5,          # Size of the pixel neighborhood used for polynomial expansion; higher values allow more complex motion
+                                            poly_sigma = 1.2,    # Standard deviation of the Gaussian used for polynomial expansion; higher values make the flow smoother
+                                            flags = 0)           # Flags to modify the algorithm behavior (usually 0 for default behavior)
+    return flow
+
 def computeOpticalFlows(
         coloredFrames: List[np.ndarray],
         focalLength: float,
@@ -138,11 +157,11 @@ def computeOpticalFlows(
     if angularCameraSpeedsFramesQuantity != len(coloredFrames) or angularCameraSpeedsDim != 3:
         log.error("Error: the provided angular camera speeds data is inconsistent with the video frames!")
     
-    # Computing the optical flows for all frames
+    # Computing the optical flows for all frames...
     naturalFlowFrames = []
     egoFlowFrames = []
     compensatedFlowFrames = []
-    if coloredFrames is None: sys.exit()
+    if coloredFrames is None: log.error("Error: the provided colored frames data is a None object!")
     grayFrames = [cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) for frame in coloredFrames]
     G,H = computeEgoMotionMatrices(framesWidth, framesHeight, focalLength)
     progressLabel = -1
@@ -152,23 +171,15 @@ def computeOpticalFlows(
         # Computing the natural optical flow between previous and current frame
         prevFrame = grayFrames[j - 1]
         currentFrame = grayFrames[j]
-        flow = cv2.calcOpticalFlowFarneback(prev = prevFrame,    # Previous frame (grayscale image)
-                                            next = currentFrame, # Current frame (grayscale image)
-                                            flow = None,         # Output flow image; set to None to allow OpenCV to create it
-                                            pyr_scale = 0.5,     # Image pyramid scale; a value between 0 and 1, controlling the resolution of each pyramid level
-                                            levels = 3,          # Number of pyramid levels; higher values detect motion at larger scales
-                                            winsize = 15,        # Window size for local averaging (in pixels)
-                                            iterations = 3,      # Number of iterations for refining the flow estimation at each pyramid level
-                                            poly_n = 5,          # Size of the pixel neighborhood used for polynomial expansion; higher values allow more complex motion
-                                            poly_sigma = 1.2,    # Standard deviation of the Gaussian used for polynomial expansion; higher values make the flow smoother
-                                            flags = 0)           # Flags to modify the algorithm behavior (usually 0 for default behavior)
-        
+        flow = computeOpticalFlow(prevFrame, currentFrame)
+
         # Retrieving the camera velocities and depth matrix for the current frame
         cameraLinVel = np.reshape(np.array(linearCameraSpeeds[j]), (3, 1))
         cameraAngVel = np.reshape(np.array(angularCameraSpeeds[j]), (3, 1))
         cameraDepthMatrix = np.maximum(np.array(videoDepths[j]).reshape(framesHeight, framesWidth), 1e-6)
         
         # Implementing the ego motion compensation: egoVel = (1/depth)*G@v+H@w for each pixel in the whole frame
+        # egoFlow shape is: (height, width, 2)
         egoFlow = (1/cameraDepthMatrix)[..., None]*(G@cameraLinVel).squeeze(-1) + (H@cameraAngVel).squeeze(-1)
         compensatedFlow = flow - egoFlow
         

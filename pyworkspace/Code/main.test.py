@@ -3,17 +3,8 @@ from pathlib import Path
 import cv2, os
 import logger as log
 import numpy as np
+from miscellaneous import plot
 from opticalFlow import loadImagesAsFrames, computeOpticalFlows, saveFramesToVideo
-import matplotlib.pyplot as plt
-
-def plot(vector, title):
-    plt.figure(figsize=(10, 5))
-    plt.plot(vector, marker='o', linestyle='-', color='b')
-    plt.title(title)
-    plt.xlabel(title)
-    plt.ylabel('time')
-    plt.grid(True)
-    plt.show()
 
 def resample(array, numberOfSamples):
     l = array.shape[0]
@@ -38,7 +29,7 @@ if __name__ == "__main__":
     if not frames: exit()
 
     # Setting up data
-    log.log("Loading simulation frames...")
+    log.log("Loading simulation data...")
     focalLength = 256 # pixels (float)
     videoDepths = np.zeros((framesQuantity, height, width)) # meters (float)
     speedData = np.zeros((framesQuantity, 6)) # meters/sec (float)
@@ -49,8 +40,8 @@ if __name__ == "__main__":
     consecutiveDifferences = np.diff(yawAngles, axis=0, prepend=yawAngles[0])
     angularCameraSpeeds[:, 1] = consecutiveDifferences*fps # radians/sec (float) (alias consecutiveDifferences/(1/fps))
     angularCameraSpeeds[0, 1] = angularCameraSpeeds[1, 1] # radians/sec (float) (alias consecutiveDifferences[0]/(1/fps))
-    log.log(f"Yaw angles: {yawAngles}")
-    log.log(f"Angular camera speeds: {angularCameraSpeeds[:, 1]}")
+    log.log(f"Yaw angles: {np.round(yawAngles, 4)}")
+    log.log(f"Camera angular yaw speed: {np.round(angularCameraSpeeds[:, 1], 4)}")
 
     plot(linearCameraSpeeds[:, 0], "Linear Camera Speed X")
     plot(linearCameraSpeeds[:, 1], "Linear Camera Speed Y")
@@ -70,10 +61,10 @@ if __name__ == "__main__":
     log.setActive("SAVING")
     log.log(f"Now saving optical flows videos: {fps} FPS with {width}x{height} resolution")
     log.log("Saving the natural optical flow to video...")
-    saveFramesToVideo(naturalFlowFrames, outputFolderPath / "naturalFlow.avi", fps, width, height)
+    saveFramesToVideo(naturalFlowFrames, outputFolderPath / "naturalFlow.avi", fps)
     log.log("Saving the ego optical flow to video...")
-    saveFramesToVideo(egoFlowFrames, outputFolderPath / "egoFlow.avi", fps, width, height)
+    saveFramesToVideo(egoFlowFrames, outputFolderPath / "egoFlow.avi", fps)
     log.log("Saving the compensated optical flow to video...")
-    saveFramesToVideo(compensatedFlowFrames, outputFolderPath / "compensatedFlow.avi", fps, width, height)
+    saveFramesToVideo(compensatedFlowFrames, outputFolderPath / "compensatedFlow.avi", fps)
 
     cv2.destroyAllWindows() # Close all OpenCV windows

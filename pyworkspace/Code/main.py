@@ -2,17 +2,8 @@
 import cv2, os
 import logger as log
 import numpy as np
-from opticalFlow import loadVideoFrames, computeOpticalFlows, saveFramesToVideo
-import matplotlib.pyplot as plt
-
-def plot(vector, title):
-    plt.figure(figsize=(10, 5))
-    plt.plot(vector, marker='o', linestyle='-', color='b')
-    plt.title(title)
-    plt.xlabel(title)
-    plt.ylabel('time')
-    plt.grid(True)
-    plt.show()
+from miscellaneous import plot
+from opticalFlow import loadVideoFrames, computeOpticalFlows, saveFramesToVideo, loadCameraVelocitiesFromStationaryEnvironment
 
 def resample(array, numberOfSamples):
     l = array.shape[0]
@@ -36,7 +27,7 @@ if __name__ == "__main__":
     if not frames: exit()
 
     # Setting up data
-    log.log("Loading simulation frames...")
+    log.log("Loading simulation data...")
     focalLength = 522.196 # pixels (float)
     videoDepths = resample(np.load(dataFolderPath + os.sep + "depth_tensor.npy"), framesQuantity) # meters (float)
     speedData = resample(np.load(dataFolderPath + os.sep + "camera_velocities.npy"), framesQuantity) # meters/sec (float)
@@ -60,10 +51,10 @@ if __name__ == "__main__":
     # Saving optical flows to video
     log.setActive("SAVING")
     log.log("Saving the natural optical flow to video...")
-    saveFramesToVideo(naturalFlowFrames, outputFolderPath + os.sep + "naturalFlow.avi", fps, width, height)
+    saveFramesToVideo(naturalFlowFrames, outputFolderPath + os.sep + "naturalFlow.avi", fps)
     log.log("Saving the ego optical flow to video...")
-    saveFramesToVideo(egoFlowFrames, outputFolderPath + os.sep + "egoFlow.avi", fps, width, height)
+    saveFramesToVideo(egoFlowFrames, outputFolderPath + os.sep + "egoFlow.avi", fps)
     log.log("Saving the compensated optical flow to video...")
-    saveFramesToVideo(compensatedFlowFrames, outputFolderPath + os.sep + "compensatedFlow.avi", fps, width, height)
+    saveFramesToVideo(compensatedFlowFrames, outputFolderPath + os.sep + "compensatedFlow.avi", fps)
 
     cv2.destroyAllWindows() # Close all OpenCV windows
