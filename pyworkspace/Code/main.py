@@ -119,7 +119,7 @@ def objectDetectionTask(dataFolderPath, inputVideoPath, outputFolderPath):
 
     # Plotting the results
     log.setActive("PLTING")
-    log.log("Plotting depth result on graph...")
+    log.log("Plotting depth results on graph...")
     depthsBoxCenter = []
     depthsBlobCenter = []
     depthsProjectedBoxCenterOnBlob = []

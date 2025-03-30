@@ -7,7 +7,7 @@ def setActive(task: str):
     newLine()
     global activeTask
     activeTask = task.upper()
-    log("Start of the execution of " + activeTask + "!")
+    log("Starting the execution of " + activeTask + "!")
 
 def newLine():
     if activeTask: log("")
