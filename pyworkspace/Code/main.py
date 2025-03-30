@@ -84,6 +84,15 @@ def objectDetectionTask(dataFolderPath, inputVideoPath, outputFolderPath):
     if videoDepthsFramesQuantity != len(frames) or videoDepthsWidth != width or videoDepthsHeight != height:
         log.error("Error: the provided video depths data is inconsistent with the video frames!")
 
+    # Cutting data...
+    startingTime = 14
+    endingTime = 29
+    startFrame = int(startingTime*fps)
+    endFrame = int(endingTime*fps) - 6
+    frames = frames[startFrame:endFrame]
+    videoDepths = videoDepths[startFrame:endFrame]
+    log.log(f"Cutted to {len(frames)} frames, from {startFrame} to {endFrame} of the original frames")
+
     # Performing YOLOv8 object detection
     log.setActive("ODYOLO")
     log.log("Performing YOLOv8 object detection...")
@@ -105,25 +114,52 @@ def objectDetectionTask(dataFolderPath, inputVideoPath, outputFolderPath):
     depthsBoxCenter = []
     depthsBlobCenter = []
     depthsProjectedBoxCenterOnBlob = []
+    depthsBlobMedians = []
+    depthsImprovedBlobMedians = []
     for idx, ybbox in enumerate(ybboxes):
         if ybbox is None:
             depthsBoxCenter.append(0)
             depthsBlobCenter.append(0)
             depthsProjectedBoxCenterOnBlob.append(0)
+            depthsBlobMedians.append(0)
+            depthsImprovedBlobMedians.append(0)
         else:
             xCenter = ybbox.xCenter
             yCenter = ybbox.yCenter
             blobCenterX = ybbox.blobCenterX
             blobCenterY = ybbox.blobCenterY
+
             depthsBoxCenter.append(videoDepths[idx][yCenter, xCenter])
             depthsBlobCenter.append(videoDepths[idx][blobCenterY, blobCenterX])
             depthsProjectedBoxCenterOnBlob.append(videoDepths[idx][ybbox.yCenterProjected, ybbox.xCenterProjected])
+
+            depthsImprovedBlobMedians.append(ybbox.generateDepth(videoDepths[idx]))
+
+            """
+            boxDepths = videoDepths[idx][ybbox.y:ybbox.y+ybbox.h, ybbox.x:ybbox.x+ybbox.w]
+            boxDepths = boxDepths[ybbox.blobGrid == 1]
+            boxDepths = boxDepths[np.isfinite(boxDepths)]
+            if len(boxDepths) > 0:
+                depth = np.median(boxDepths)
+                print(depth)
+                depthsBlobMeans.append(depth)
+            
+            boxDepths = videoDepths[idx][ybbox.y:ybbox.y+ybbox.h, ybbox.x:ybbox.x+ybbox.w]
+            boxDepths = boxDepths[ybbox.getOtsuImprovedBlob(videoDepths[idx]) == 1]
+            boxDepths = boxDepths[np.isfinite(boxDepths)]
+            if len(boxDepths) > 0:
+                depth = np.median(boxDepths)
+                depthsImprovedBlobMeans.append(depth)"
+            """
+    
     plt.figure(figsize=(10, 5))
-    plt.plot(depthsBoxCenter, linestyle='-', color='green', label='Box Center')
-    plt.plot(depthsBlobCenter, linestyle='-', color='orange', label='Blob Center')
-    plt.plot(depthsProjectedBoxCenterOnBlob, linestyle='-', color='purple', label='Projected Center')
-    plt.title("Depths for Bounding Box and Blob Centers")
-    plt.xlabel("time")
+    plt.plot(depthsBoxCenter, linestyle='-', color='green', label='Accordingly to Box Center')
+    plt.plot(depthsProjectedBoxCenterOnBlob, linestyle='-', color='purple', label='Accordingly to Projected Box Center')
+    plt.plot(depthsBlobCenter, linestyle='-', color='orange', label='Accordingly to Blob Center')
+    # plt.plot(depthsBlobMedians, linestyle='-', color='red', label='From Blob Values Median')
+    plt.plot(depthsImprovedBlobMedians, linestyle='-', color='blue', label='From Blob Depth Values Median')
+    plt.title("Depth")
+    plt.xlabel(f"frames ({fps} FPS)")
     plt.ylabel("depth (m)")
     plt.grid()
     plt.legend()
@@ -138,5 +174,5 @@ if __name__ == "__main__":
     if not os.path.exists(outputFolderPath): os.makedirs(outputFolderPath)
 
     objectDetectionTask(dataFolderPath, inputVideoPath, outputFolderPath)
-    
+
     log.log("All completed with success!")

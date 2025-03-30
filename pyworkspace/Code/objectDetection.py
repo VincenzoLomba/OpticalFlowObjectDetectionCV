@@ -1,14 +1,14 @@
 
 from typing import List
 from ultralytics import YOLO
-import os
+import os, cv2
 import logger as log
 import numpy as np
-import cv2
 
 class YBBox:
 
     def __init__(self, xCenter, yCenter, w, h, confidence, blobGrid):
+
         self.x = int(xCenter - w / 2)
         self.y = int(yCenter - h / 2)
         self.xCenter = int(xCenter)
@@ -24,18 +24,49 @@ class YBBox:
         else:
             self.blobCenterX, self.blobCenterY = self.xCenter, self.yCenter
         self.xCenterProjected, self.yCenterProjected = self.projectCenterOnBlob()
+        self.depth = None
 
     def projectCenterOnBlob(self):
-        if self.blobGrid is None or np.count_nonzero(self.blobGrid) == 0:
-            return self.xCenter, self.yCenter
+
+        if self.blobGrid is None or np.count_nonzero(self.blobGrid) == 0: return self.xCenter, self.yCenter
         erosionKernel = np.ones((3, 3), np.uint8) # Performs erosion to ensure project it-on the blob perimeter
         erodedBlob = self.blobGrid.astype(np.uint8)
         erodedBlob = cv2.erode(erodedBlob, erosionKernel, iterations = 10)  
         coords = np.column_stack(np.where(erodedBlob == 1))
         distances = np.sqrt((coords[:, 0] - (self.yCenter - self.y))**2 + (coords[:, 1] - (self.xCenter - self.x))**2)
+        if len(distances) == 0:
+            coords = np.column_stack(np.where(self.blobGrid == 1))
+            distances = np.sqrt((coords[:, 0] - (self.yCenter - self.y))**2 + (coords[:, 1] - (self.xCenter - self.x))**2)
         nearestIdx = np.argmin(distances)
         nearestY, nearestX = coords[nearestIdx]
         return self.x + nearestX, self.y + nearestY
+    
+    def getOtsuImprovedBlob(self, fullFrameDepths):
+
+        if self.blobGrid is None or np.count_nonzero(self.blobGrid) == 0: return None
+        boxDepths = fullFrameDepths[self.y:self.y+self.h, self.x:self.x+self.w]
+        # Get the depths of the bounding box pixels that also belong to the blob
+        objectDepths = boxDepths[self.blobGrid == 1]
+        # Normalize the depths to the range [0, 255] for Otsu's thresholding
+        clippedDepths = np.clip(objectDepths, np.percentile(objectDepths, 5), np.percentile(objectDepths, 95))
+        normalizedForOtsuDepths = cv2.normalize(clippedDepths, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+        # Apply Otsu's thresholding to find the optimal threshold value
+        otsuThresholdValue, _ = cv2.threshold(normalizedForOtsuDepths, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # Calculate the threshold value in the original depth range
+        thresholdValue = (otsuThresholdValue / 255) * (objectDepths.max() - objectDepths.min()) + objectDepths.min()
+        # Create a mask for the blob pixels with depth values below the threshold
+        filteredMask = np.zeros_like(self.blobGrid, dtype=np.uint8)
+        validPixels = np.logical_and((self.blobGrid == 1), (boxDepths <= thresholdValue))
+        filteredMask[validPixels] = 1
+        if np.count_nonzero(filteredMask) == 0: filteredMask = self.blobGrid
+        boxDepths = boxDepths[filteredMask == 1]
+        boxDepths = boxDepths[np.isfinite(boxDepths)]
+        self.depth = np.median(boxDepths)
+        return filteredMask
+    
+    def generateDepth(self, fullFrameDepths):
+        if self.depth is None: self.getOtsuImprovedBlob(fullFrameDepths)
+        return self.depth
 
 def performDetection(
         frames: List[np.ndarray],         # List of frames (numpy arrays) to process
@@ -69,53 +100,51 @@ def performDetection(
     log.log("Performing YOLOv8 detection on all frames...")
     ybboxes = []
     progressLabel = -1
-    try:
-        for j in range(0, len(frames)):
+    for j in range(0, len(frames)):
 
-            frame = frames[j]
-            yoloResults = model.predict(
-                source  = frame,               # Input frame for detection (numpy array/HWC format)
-                conf    = confidenceThreshold, # Minimum confidence score (0.65) to accept detection
-                classes = [0],                 # Only detect people (class 0 in COCO dataset)
-                verbose = False                # Disable console output (cleaner execution)
-            )
+        frame = frames[j]
+        yoloResults = model.predict(
+            source  = frame,               # Input frame for detection (numpy array/HWC format)
+            conf    = confidenceThreshold, # Minimum confidence score (0.65) to accept detection
+            classes = [0],                 # Only detect people (class 0 in COCO dataset)
+            verbose = False                # Disable console output (cleaner execution)
+        )
 
-            # YOLO results elaboration...
-            ybbox = None
-            for singleResult in yoloResults:
-                boxes = singleResult.boxes.xywh.cpu().numpy()
-                confidences = singleResult.boxes.conf.cpu().numpy()
-                masks = singleResult.masks.data.cpu().numpy() if singleResult.masks else None
-                for idx, (box, conf) in enumerate(zip(boxes, confidences)):
-                    xCenter, yCenter, w, h = box
-                    if not ybbox:
-                        blobGrid = None
-                        if masks is not None and idx < len(masks):
-                            mask = masks[idx]
-                            x1 = max(0, int(xCenter - w / 2))
-                            y1 = max(0, int(yCenter - h / 2))
-                            x2 = min(mask.shape[1], int(xCenter + w / 2))
-                            y2 = min(mask.shape[0], int(yCenter + h / 2))
-                            blobGrid = mask[y1:y2, x1:x2]
-                            if blobGrid.shape != (int(h), int(w)):
-                                blobGrid = cv2.resize(blobGrid, (int(w), int(h)), interpolation=cv2.INTER_NEAREST)
-                            blobGrid = np.where(blobGrid > 0.5, 1, 0)
-                        else:
-                            log.log(f"Mask not found for frame number {j+1}!")
-                        ybbox = YBBox(xCenter, yCenter, w, h, conf, blobGrid)
+        # YOLO results elaboration...
+        ybbox = None
+        for singleResult in yoloResults:
+            boxes = singleResult.boxes.xywh.cpu().numpy()
+            confidences = singleResult.boxes.conf.cpu().numpy()
+            masks = singleResult.masks.data.cpu().numpy() if singleResult.masks else None
+            for idx, (box, conf) in enumerate(zip(boxes, confidences)):
+                xCenter, yCenter, w, h = box
+                if not ybbox:
+                    blobGrid = None
+                    if masks is not None and idx < len(masks):
+                        mask = masks[idx]
+                        x1 = max(0, int(xCenter - w / 2))
+                        y1 = max(0, int(yCenter - h / 2))
+                        x2 = min(mask.shape[1], int(xCenter + w / 2))
+                        y2 = min(mask.shape[0], int(yCenter + h / 2))
+                        blobGrid = mask[y1:y2, x1:x2]
+                        if blobGrid.shape != (int(h), int(w)):
+                            blobGrid = cv2.resize(blobGrid, (int(w), int(h)), interpolation=cv2.INTER_NEAREST)
+                        blobGrid = np.where(blobGrid > 0.4, 1, 0)
                     else:
-                        log.log(f"Multiple objects detections for frame number {j+1}!")
-                        break
-            ybboxes.append(ybbox)
+                        log.log(f"Mask not found for frame number {j+1}!")
+                    ybbox = YBBox(xCenter, yCenter, w, h, conf, blobGrid)
+                else:
+                    log.log(f"Multiple objects detections for frame number {j+1}!")
+                    break
+        ybboxes.append(ybbox)
 
-            # Updating "progress bar"
-            progress = (int)(j/len(frames)*100)
-            if progress % 10 == 0 and progress != progressLabel:
-                progressLabel = progress
-                log.log("Progress: " + str(progress) + "%")
+        # Updating "progress bar"
+        progress = (int)(j/len(frames)*100)
+        if progress % 10 == 0 and progress != progressLabel:
+            progressLabel = progress
+            log.log("Progress: " + str(progress) + "%")
 
-    except Exception as e: log.error(f"Error during YOLOv8 detection: {str(e)}")
-    finally: return ybboxes
+    return ybboxes
 
 def drawBoundingBoxes(
         frames: List[np.ndarray],
@@ -157,6 +186,11 @@ def drawBoundingBoxes(
         confidence = ybbox.confidence
         blobGrid = ybbox.blobGrid
         depths = videoDepths[j] if videoDepths is not None else None
+
+        # Drawing the improved blob perimeter
+        # if depths is not None:
+        #     contours, _ = cv2.findContours(ybbox.getOtsuImprovedBlob(depths).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        #     for contour in contours: cv2.drawContours(frame, [contour + [x, y]], -1, purpleColor, 2)
 
         # Drawing the blob perimeter
         contours, _ = cv2.findContours(blobGrid.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
