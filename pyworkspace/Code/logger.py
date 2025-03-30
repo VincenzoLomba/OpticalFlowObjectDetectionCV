@@ -3,7 +3,7 @@ from miscellaneous import getTime
 
 activeTask = None
 
-def setActive(task):
+def setActive(task: str):
     newLine()
     global activeTask
     activeTask = task.upper()
@@ -13,10 +13,10 @@ def newLine():
     if activeTask: log("")
     else: print("")
 
-def log(word):
+def log(word: str):
     print("[" + activeTask + "][" + str(getTime()) + "] " + word)
 
-def error(word):
+def error(word: str):
     log(word)
     newLine()
     raise Exception(word)

@@ -13,8 +13,7 @@ def getTime(): return datetime.now().strftime(dateFormat)
 
 def plot(vector, title):
     plt.figure(figsize=(10, 5))
-    # plt.plot(vector, marker='o', linestyle='-', color='b')
-    plt.plot(vector, linestyle='-', color='b')
+    plt.plot(vector, linestyle='-', color='k')
     plt.title(title)
     plt.xlabel(title)
     plt.ylabel('time')
