@@ -1,3 +1,4 @@
+.vscode/
 pyworkspace/Lib/
-pyworkspace/Code/Data/*
-pyworkspace/Code/__pycache__/*
+pyworkspace/Code/Data/
+pyworkspace/Code/__pycache__/

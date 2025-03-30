@@ -1,6 +1,0 @@
-{
-    "python.analysis.extraPaths": [
-        "./pyworkspace/Data",
-        "./pyworkspace/Code"
-    ]
-}
