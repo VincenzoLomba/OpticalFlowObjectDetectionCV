@@ -84,7 +84,7 @@ def objectDetectionTask(dataFolderPath, inputVideoPath, outputFolderPath):
     if videoDepthsFramesQuantity != len(frames) or videoDepthsWidth != width or videoDepthsHeight != height:
         log.error("Error: the provided video depths data is inconsistent with the video frames!")
 
-    # Cutting video...
+    # Cutting video
     startingTime = 14
     endingTime = 29
     startingFrame = int(startingTime*fps)
