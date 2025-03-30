@@ -4,7 +4,7 @@ import logger as log
 import numpy as np
 from miscellaneous import plot
 from opticalFlow import loadVideoFrames, computeOpticalFlows, saveFramesToVideo
-from objectDetection import performDetection, drawBoundingBoxes
+from objectDetection import performDetection, drawDetectedObjects
 from matplotlib import pyplot as plt
 
 def resample(array, numberOfSamples):
@@ -84,14 +84,16 @@ def objectDetectionTask(dataFolderPath, inputVideoPath, outputFolderPath):
     if videoDepthsFramesQuantity != len(frames) or videoDepthsWidth != width or videoDepthsHeight != height:
         log.error("Error: the provided video depths data is inconsistent with the video frames!")
 
-    # Cutting data...
+    # Cutting video...
     startingTime = 14
     endingTime = 29
-    startFrame = int(startingTime*fps)
-    endFrame = int(endingTime*fps) - 6
-    frames = frames[startFrame:endFrame]
-    videoDepths = videoDepths[startFrame:endFrame]
-    log.log(f"Cutted to {len(frames)} frames, from {startFrame} to {endFrame} of the original frames")
+    startingFrame = int(startingTime*fps)
+    endingFrame = int(endingTime*fps)-6
+    if startingFrame < 0: startingFrame = 0
+    if endingFrame > framesQuantity: endingFrame = framesQuantity
+    frames = frames[startingFrame:endingFrame]
+    videoDepths = videoDepths[startingFrame:endingFrame]
+    log.log(f"Video cutted to {len(frames)} frames (from {startingFrame} to {endingFrame} of original frames)")
 
     # Performing YOLOv8 object detection
     log.setActive("ODYOLO")
@@ -101,12 +103,19 @@ def objectDetectionTask(dataFolderPath, inputVideoPath, outputFolderPath):
     # Drawing bounding boxes on video frames
     log.setActive("DRWBOX")
     log.log("Drawing bounding boxes on video frames...")
-    framesWithBoxes = drawBoundingBoxes(frames, ybboxes, videoDepths)
+    framesWithDetection = drawDetectedObjects(frames, ybboxes, videoDepths)
 
-    # Saving optical flows to video
+    # Saving results to video
     log.setActive("SAVING")
-    log.log(f"Now saving result to video ({fps} FPS with {width}x{height} resolution)...")
-    saveFramesToVideo(framesWithBoxes, outputFolderPath + os.sep + "output.avi", fps)
+    log.log(f"Now re-generating the original video (cutted from frame {startingFrame} to frame {endingFrame})...")
+    saveFramesToVideo(frames, outputFolderPath + os.sep + "outputOriginal.avi", fps)
+    log.log(f"Now saving results to video ({fps} FPS with {width}x{height} resolution)...")
+    saveFramesToVideo(framesWithDetection, outputFolderPath + os.sep + "outputBoxes.avi", fps)
+
+    # Saving a frame of interest as an image
+    frameIndex = 435
+    log.log(f"Saving a frame of interest {frameIndex} as an image...")
+    cv2.imwrite(outputFolderPath + os.sep + f"{frameIndex}.png", framesWithDetection[frameIndex])
 
     # Plotting the results
     log.setActive("PLTING")
@@ -163,6 +172,7 @@ def objectDetectionTask(dataFolderPath, inputVideoPath, outputFolderPath):
     plt.ylabel("depth (m)")
     plt.grid()
     plt.legend()
+    plt.savefig(outputFolderPath + os.sep + "depth.png")
     plt.show()
 
 if __name__ == "__main__":
@@ -170,7 +180,7 @@ if __name__ == "__main__":
     # Project Folders
     dataFolderPath = "C:\\Users\\vince\\OneDrive\\Documenti\\Università\\Magistrale\\Second Year\\Topic Highlights\\Final Project\\pyworkspace\\Code\\Data\\objectDetection"
     inputVideoPath = dataFolderPath + os.sep + "input.avi"
-    outputFolderPath = dataFolderPath + os.sep + ""
+    outputFolderPath = dataFolderPath + os.sep + "output"
     if not os.path.exists(outputFolderPath): os.makedirs(outputFolderPath)
 
     objectDetectionTask(dataFolderPath, inputVideoPath, outputFolderPath)

@@ -146,7 +146,7 @@ def performDetection(
 
     return ybboxes
 
-def drawBoundingBoxes(
+def drawDetectedObjects(
         frames: List[np.ndarray],
         ybboxes: List[YBBox],
         videoDepths: List[np.ndarray]
