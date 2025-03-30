@@ -1,0 +1,3 @@
+pyworkspace/Lib/
+pyworkspace/Code/Data/*
+pyworkspace/Code/__pycache__/*
