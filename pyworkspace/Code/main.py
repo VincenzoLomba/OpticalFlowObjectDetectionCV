@@ -85,8 +85,8 @@ def objectDetectionTask(dataFolderPath, inputVideoPath, outputFolderPath):
         log.error("Error: the provided video depths data is inconsistent with the video frames!")
 
     # Cutting video
-    startingTime = 14
-    endingTime = 29
+    startingTime = 54 # 14
+    endingTime = 60+45 # 29
     startingFrame = int(startingTime*fps)
     endingFrame = int(endingTime*fps)-6
     if startingFrame < 0: startingFrame = 0
@@ -94,6 +94,7 @@ def objectDetectionTask(dataFolderPath, inputVideoPath, outputFolderPath):
     frames = frames[startingFrame:endingFrame]
     videoDepths = videoDepths[startingFrame:endingFrame]
     log.log(f"Video cutted to {len(frames)} frames (from {startingFrame} to {endingFrame} of original frames)")
+    log.log(f"Now re-generating the original video (cutted from frame {startingFrame} to frame {endingFrame})...")
 
     # Performing YOLOv8 object detection
     log.setActive("ODYOLO")
@@ -178,8 +179,9 @@ def objectDetectionTask(dataFolderPath, inputVideoPath, outputFolderPath):
 if __name__ == "__main__":
 
     # Project Folders
-    dataFolderPath = "C:\\Users\\vince\\OneDrive\\Documenti\\Università\\Magistrale\\Second Year\\Topic Highlights\\Final Project\\pyworkspace\\Code\\Data\\objectDetection"
-    inputVideoPath = dataFolderPath + os.sep + "input.avi"
+    # dataFolderPath = "C:\\Users\\vince\\OneDrive\\Documenti\\Università\\Magistrale\\Second Year\\Topic Highlights\\Final Project\\pyworkspace\\Code\\Data\\objectDetection"
+    dataFolderPath = "C:\\Users\\vince\\Downloads\\job"
+    inputVideoPath = dataFolderPath + os.sep + "Elementi multimediali1.avi"
     outputFolderPath = dataFolderPath + os.sep + "output"
     if not os.path.exists(outputFolderPath): os.makedirs(outputFolderPath)
 
